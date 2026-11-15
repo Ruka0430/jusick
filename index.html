@@ -8,7 +8,7 @@
 <style>
 :root{--bg:#0e1116;--panel:#161b22;--panel2:#1c232c;--line:#262d38;--text:#e6e8eb;--muted:#8b95a1;--up:#f04452;--down:#3182f6;--accent:#f5c451}
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--text);font-family:Pretendard,'Malgun Gothic','Apple SD Gothic Neo',sans-serif;font-size:14px;font-variant-numeric:tabular-nums}
+body{background:var(--bg);color:function update((--text);font-family:Pretendard,'Malgun Gothic','Apple SD Gothic Neo',sans-serif;font-size:14px;font-variant-numeric:tabular-nums}
 button{font-family:inherit;cursor:pointer}
 .up{color:var(--up)}.down{color:var(--down)}.flat{color:var(--muted)}
 header{display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-bottom:1px solid var(--line);background:var(--panel)}
@@ -404,10 +404,18 @@ function update(){
   $('me-equity').textContent = won(equity)+'원';
   $('me-ret').textContent = pct(ret); $('me-ret').className = cls(ret);
   $('me-pl').textContent = (tpl>0?'+':'')+won(tpl)+'원'; $('me-pl').className = cls(tpl);
-  const now = Date.now();
+const now = Date.now();
   if(now-lastPush>3000){
     lastPush = now;
-    db.ref('players/'+myKey).set({nick:me.nick,equity:Math.round(equity)}).catch(e=>{console.error(e);$('ranks').textContent='랭킹 저장 실패: '+(e.code||e.message)+' → Firebase 규칙을 확인하세요';});
+    db.ref('players/'+myKey).set({
+      nick: me.nick,
+      equity: Math.round(equity)
+    }).then(function() {
+      console.log('랭킹 전송 성공:', me.nick, Math.round(equity));
+    }).catch(function(e) {
+      console.error('랭킹 전송 실패:', e);
+      alert('랭킹 저장 실패: ' + (e.code || e.message));
+    });
   }
 }
 
