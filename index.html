@@ -68,8 +68,20 @@ aside{position:sticky;top:16px}
 .news .old{margin-top:10px;padding-top:8px;border-top:1px solid var(--line)}
 .news .old div{font-size:13px;padding:3px 0;color:#b6bcc4}
 .news .old time{color:var(--muted);font-size:11px;margin-right:8px}
-#bgm{background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:4px;padding:3px 8px;margin-right:6px}
+#bgm,#mbtn{background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:4px;padding:3px 8px;margin-right:6px}
 #vol{width:70px;margin-right:12px;accent-color:var(--accent)}
+#mpanel{position:fixed;top:56px;right:16px;z-index:25;width:min(320px,92vw);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px;box-shadow:0 8px 28px rgba(0,0,0,.5)}
+#mpanel h3{font-size:14px;margin-bottom:8px}
+#mlist{max-height:240px;overflow:auto;margin-bottom:10px}
+#mlist .it{display:flex;align-items:center;gap:4px}
+#mlist .pick{flex:1;text-align:left;background:none;border:0;color:var(--text);padding:8px;border-radius:4px;font-size:13px}
+#mlist .it.on .pick{color:var(--accent);font-weight:700;background:var(--panel2)}
+#mlist .del{background:none;border:0;color:var(--muted);padding:6px}
+.madd{display:flex;gap:6px;margin-bottom:8px}
+.madd input{flex:1;min-width:0;background:var(--bg);border:1px solid var(--line);color:var(--text);border-radius:4px;padding:7px;font-size:13px}
+.madd button{background:var(--accent);color:#1a1400;border:0;border-radius:4px;padding:7px 12px;font-weight:700}
+.mrep{font-size:12px;color:var(--muted);display:flex;gap:6px;align-items:center}
+#mmsg{color:var(--up);font-size:12px;margin-top:6px;min-height:14px}
 #ytbox{position:fixed;left:12px;bottom:12px;z-index:15;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:#000}
 #alert{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:30;padding:14px 26px;border-radius:8px;font-size:18px;font-weight:800;color:#fff;box-shadow:0 6px 24px rgba(0,0,0,.5);max-width:92vw;text-align:center}
 #alert.bull{background:#c62a37}#alert.bear{background:#1f5fc9}
@@ -91,7 +103,7 @@ aside{position:sticky;top:16px}
 <div id="app" class="hidden">
   <header>
     <h1>📈 모의 주식 투자</h1>
-    <div style="display:flex;align-items:center;flex-wrap:wrap;justify-content:flex-end"><button id="bgm" title="배경음악 켜기/끄기">🔊</button><input id="vol" type="range" min="0" max="100" value="35" aria-label="볼륨"><span id="mood" class="hidden"></span><span id="clock"></span><span id="status">연결 중…</span></div>
+    <div style="display:flex;align-items:center;flex-wrap:wrap;justify-content:flex-end"><button id="mbtn" title="음악 선택">🎵</button><button id="bgm" title="배경음악 켜기/끄기">🔊</button><input id="vol" type="range" min="0" max="100" value="35" aria-label="볼륨"><span id="mood" class="hidden"></span><span id="clock"></span><span id="status">연결 중…</span></div>
   </header>
   <div id="bar"><i></i></div>
   <div class="layout">
@@ -106,11 +118,18 @@ aside{position:sticky;top:16px}
         <div class="kv"><span>총 평가손익</span><span id="me-pl"></span></div>
       </div>
       <div class="card"><h3>보유 주식</h3><div id="holds"></div></div>
-      <div class="card"><h3>자산 랭킹 TOP 5 · v8</h3><div id="ranks"></div></div>
+      <div class="card"><h3>자산 랭킹 TOP 5 · v9</h3><div id="ranks"></div></div>
     </aside>
   </div>
 </div>
 <div id="alert" class="hidden"></div>
+<div id="mpanel" class="hidden">
+  <h3>🎵 음악 선택</h3>
+  <div id="mlist"></div>
+  <div class="madd"><input id="murl" placeholder="유튜브 주소 붙여넣기" aria-label="유튜브 주소"><button id="madd">추가</button></div>
+  <label class="mrep"><input type="checkbox" id="mrep"> 한 곡 반복 (끄면 목록 순서대로)</label>
+  <div id="mmsg"></div>
+</div>
 <div id="ytbox" class="hidden"><div id="ytplayer"></div></div>
 <div id="toast"></div>
 
@@ -126,12 +145,10 @@ const MAX_MOVE      = 0.02;    // 한 번에 기본 변동폭 ±2%
 const TICK_MS       = 10000;   // 주가 변동 주기 (10초)  ← 더 느리게: 숫자를 키우세요
 const START_CASH    = 1000000; // 초기 자본금
 const HISTORY_LEN   = 90;      // 차트용 최근 가격 개수
-/* ★ BGM: 유튜브 재생목록 ID (주소의 list= 뒤 글자). 비워두면 기본 BGM이 나옵니다 */
-const YT_PLAYLIST_ID = '';
-/* ★ BGM: 유튜브 영상 주소를 여기에 넣으세요 (여러 개면 쉼표로). 예: ['https://youtu.be/AAAAAAAAAAA','https://www.youtube.com/watch?v=BBBBBBBBBBB'] */
-const YT_VIDEOS = ['https://youtu.be/CbS7WwlcU8U'];
-const YT_IDS = YT_VIDEOS.map(u=>{const m=String(u).match(/(?:v=|youtu\.be\/|shorts\/|embed\/)([\w-]{11})/);return m?m[1]:String(u).trim();}).filter(Boolean);
-const USE_YT = !!(YT_PLAYLIST_ID||YT_IDS.length);
+/* ★ 기본 음악 목록: 접속자는 🎵 버튼에서 이 중에서 고르거나, 유튜브 주소를 직접 추가할 수 있습니다 (t=제목, u=유튜브 주소) */
+const MUSIC_LIST = [
+  {t:'기본 음악', u:'https://youtu.be/CbS7WwlcU8U'}
+];
 /* 이벤트(뉴스) 설정 */
 const EVENT_MIN_MS  = 1*60*1000;   // 이벤트 최소 간격 1분
 const EVENT_MAX_MS  = 3*60*1000;   // 이벤트 최대 간격 3분
@@ -451,7 +468,7 @@ function toast(msg,ms=2000){
   clearTimeout(tt); tt=setTimeout(()=>t.classList.remove('show'),ms);
 }
 
-/* ---------- BGM: 브라우저에서 직접 만드는 잔잔한 루프 음악 (파일 필요 없음) ---------- */
+/* ---------- 음악: 내장 BGM + 유튜브 곡 선택 ---------- */
 const CHORDS=[[48,55,59,64],[45,52,55,60],[50,57,60,65],[43,50,53,59]];
 const ARP=[0,1,2,3,2,1,3,2];
 let ac=null,master=null,bgmTimer=null,nextT=0,stepN=0;
@@ -473,36 +490,84 @@ function sched(){
     nextT+=0.375; stepN++;
   }
 }
-/* ---------- 유튜브 재생목록 BGM (YT_PLAYLIST_ID를 넣었을 때만 사용) ---------- */
-let yt=null,ytReady=false,ytWant=false;
-function ytStart(){
-  ytWant=true; $('bgm').textContent='🔊';
-  if(yt){ if(ytReady) yt.playVideo(); return; }
-  $('ytbox').classList.remove('hidden');
-  const opt=YT_PLAYLIST_ID
-    ?{playerVars:{listType:'playlist',list:YT_PLAYLIST_ID,playsinline:1}}
-    :{videoId:YT_IDS[0],playerVars:{playsinline:1,loop:1,playlist:(YT_IDS.length>1?YT_IDS.slice(1).join(','):YT_IDS[0])}};
-  const mk=()=>{ yt=new YT.Player('ytplayer',Object.assign({width:'256',height:'200'},opt,{
-    events:{onReady:e=>{ ytReady=true; e.target.setVolume(+$('vol').value); e.target.setShuffle(true); e.target.setLoop(true); if(ytWant) e.target.playVideo(); }}})); };
-  if(window.YT&&YT.Player) mk();
-  else{ window.onYouTubeIframeAPIReady=mk; const sc=document.createElement('script'); sc.src='https://www.youtube.com/iframe_api'; document.head.appendChild(sc); }
-}
-function ytStop(){ ytWant=false; if(yt&&ytReady) yt.pauseVideo(); $('bgm').textContent='🔇'; }
-function startBgm(){
-  if(USE_YT){ ytStart(); return; }
+function startSynth(){
   try{
     if(!ac){ ac=new(window.AudioContext||window.webkitAudioContext)(); master=ac.createGain(); master.connect(ac.destination); }
     master.gain.value=$('vol').value/100;
     ac.resume(); nextT=ac.currentTime+0.1;
     if(!bgmTimer) bgmTimer=setInterval(sched,200);
-    $('bgm').textContent='🔊';
   }catch(e){ console.error(e); }
 }
-function stopBgm(){ if(USE_YT){ ytStop(); return; } clearInterval(bgmTimer); bgmTimer=null; if(ac) ac.suspend(); $('bgm').textContent='🔇'; }
-function initBgm(){ if(localStorage.getItem('stock_bgm')!=='off') startBgm(); else $('bgm').textContent='🔇'; }
-$('bgm').onclick=()=>{ if(USE_YT?ytWant:bgmTimer){stopBgm();localStorage.setItem('stock_bgm','off');}else{startBgm();localStorage.setItem('stock_bgm','on');} };
+function stopSynth(){ clearInterval(bgmTimer); bgmTimer=null; if(ac) ac.suspend(); }
+
+const ytId=u=>{const m=String(u).match(/(?:v=|youtu\.be\/|shorts\/|embed\/)([\w-]{11})/);const t=String(u).trim();return m?m[1]:(/^[\w-]{11}$/.test(t)?t:null);};
+const BUILTIN={t:'내장 BGM (잔잔한 루프)',id:'builtin'};
+let custom=[]; try{ custom=JSON.parse(localStorage.getItem('stock_music')||'[]'); }catch(e){}
+const baseTracks=MUSIC_LIST.map(x=>({t:x.t,id:ytId(x.u)})).filter(x=>x.id).concat([BUILTIN]);
+const allTracks=()=>baseTracks.concat(custom);
+let cur=localStorage.getItem('stock_track')||baseTracks[0].id, playing=false;
+if(!allTracks().some(x=>x.id===cur)) cur=baseTracks[0].id;
+$('mrep').checked = localStorage.getItem('stock_rep')!=='0';
+
+let yt=null,ytReady=false,pendingId=null;
+function ytLoad(id){
+  pendingId=id; $('mmsg').textContent='';
+  if(yt){ if(ytReady) yt.loadVideoById(id); return; }
+  const mk=()=>{ yt=new YT.Player('ytplayer',{width:'256',height:'200',playerVars:{playsinline:1},events:{
+    onReady:e=>{ ytReady=true; e.target.setVolume(+$('vol').value); e.target.loadVideoById(pendingId); },
+    onStateChange:e=>{ if(e.data===0) nextTrack(true); },
+    onError:()=>{ $('mmsg').textContent='이 영상은 재생할 수 없어요. 다른 곡을 골라 주세요.'; }
+  }}); };
+  if(window.YT&&YT.Player) mk();
+  else{ window.onYouTubeIframeAPIReady=mk; const sc=document.createElement('script'); sc.src='https://www.youtube.com/iframe_api'; document.head.appendChild(sc); }
+}
+function playTrack(id){
+  cur=id; playing=true; localStorage.setItem('stock_track',id); localStorage.setItem('stock_bgm','on');
+  $('bgm').textContent='🔊';
+  if(id==='builtin'){ if(yt&&ytReady) yt.pauseVideo(); $('ytbox').classList.add('hidden'); startSynth(); }
+  else{ stopSynth(); $('ytbox').classList.remove('hidden'); ytLoad(id); }
+  renderMusic();
+}
+function pauseAll(){ playing=false; stopSynth(); if(yt&&ytReady) yt.pauseVideo(); $('bgm').textContent='🔇'; localStorage.setItem('stock_bgm','off'); }
+function nextTrack(auto){
+  if(auto&&$('mrep').checked&&cur!=='builtin'&&yt&&ytReady){ yt.seekTo(0); yt.playVideo(); return; }
+  const a=allTracks(), i=a.findIndex(x=>x.id===cur);
+  playTrack(a[(i+1)%a.length].id);
+}
+function renderMusic(){
+  const box=$('mlist'); box.innerHTML='';
+  allTracks().forEach(t=>{
+    const row=document.createElement('div'); row.className='it'+(t.id===cur&&playing?' on':'');
+    const b=document.createElement('button'); b.className='pick'; b.textContent=(t.id===cur&&playing?'▶ ':'')+t.t; b.onclick=()=>playTrack(t.id);
+    row.appendChild(b);
+    if(custom.some(c=>c.id===t.id)){
+      const d=document.createElement('button'); d.className='del'; d.textContent='✕'; d.title='삭제'; d.setAttribute('aria-label','삭제');
+      d.onclick=()=>{ custom=custom.filter(c=>c.id!==t.id); localStorage.setItem('stock_music',JSON.stringify(custom)); if(cur===t.id) playTrack(baseTracks[0].id); else renderMusic(); };
+      row.appendChild(d);
+    }
+    box.appendChild(row);
+  });
+}
+async function addMusic(){
+  const id=ytId($('murl').value), msg=$('mmsg');
+  if(!id){ msg.textContent='유튜브 주소를 확인해 주세요.'; return; }
+  if(allTracks().some(x=>x.id===id)){ msg.textContent='이미 목록에 있는 곡이에요.'; return; }
+  let title=null;
+  try{ const r=await fetch('https://www.youtube.com/oembed?url='+encodeURIComponent('https://youtu.be/'+id)+'&format=json'); title=(await r.json()).title; }catch(e){}
+  custom.push({t:title||('내 음악 '+(custom.length+1)),id});
+  localStorage.setItem('stock_music',JSON.stringify(custom));
+  $('murl').value=''; msg.textContent='';
+  playTrack(id);
+}
+function initBgm(){ if(localStorage.getItem('stock_bgm')!=='off') playTrack(cur); else{ $('bgm').textContent='🔇'; renderMusic(); } }
+$('bgm').onclick=()=>{ if(playing) pauseAll(); else playTrack(cur); renderMusic(); };
+$('mbtn').onclick=()=>$('mpanel').classList.toggle('hidden');
+$('madd').onclick=addMusic;
+$('murl').addEventListener('keydown',e=>{ if(e.key==='Enter') addMusic(); });
+$('mrep').onchange=e=>localStorage.setItem('stock_rep',e.target.checked?'1':'0');
 $('vol').value=localStorage.getItem('stock_vol')||35;
 $('vol').oninput=e=>{ localStorage.setItem('stock_vol',e.target.value); if(master) master.gain.value=e.target.value/100; if(yt&&ytReady) yt.setVolume(+e.target.value); };
+renderMusic();
 </script>
 </body>
 </html>
