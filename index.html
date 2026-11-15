@@ -56,6 +56,20 @@ aside{position:sticky;top:16px}
 @media(max-width:960px){.layout{grid-template-columns:1fr}aside{position:static;order:-1}}
 @media(max-width:640px){.row{grid-template-columns:1fr 1fr;gap:8px}.spark{display:none}.trade{grid-column:1/-1}.trade input{flex:1}.layout{padding:10px}}
 @media(prefers-reduced-motion:reduce){#toast{transition:none}}
+#bar{height:3px;background:var(--line)}#bar i{display:block;height:100%;width:0;background:var(--accent)}
+#clock{color:var(--muted);font-size:12px;margin-right:12px}
+#mood{font-weight:700;font-size:12px;padding:3px 9px;border-radius:10px;margin-right:10px}
+#mood.bull{background:rgba(240,68,82,.18);color:var(--up)}#mood.bear{background:rgba(49,130,246,.18);color:var(--down)}
+.news{font-family:'Noto Serif KR','Batang','Nanum Myeongjo',serif;background:#1a1f27;border-top:3px double #8b95a1;margin-bottom:14px}
+.news .mast{text-align:center;font-size:22px;font-weight:900;letter-spacing:.3em;padding:2px 0 8px;border-bottom:1px solid var(--line);margin-bottom:10px}
+.news .mast small{display:block;font-size:11px;font-weight:400;letter-spacing:0;color:var(--muted);margin-top:2px}
+.news .top h4{font-size:19px;line-height:1.4;margin-bottom:6px}
+.news .top p{color:var(--muted);font-size:13px;line-height:1.6}
+.news .old{margin-top:10px;padding-top:8px;border-top:1px solid var(--line)}
+.news .old div{font-size:13px;padding:3px 0;color:#b6bcc4}
+.news .old time{color:var(--muted);font-size:11px;margin-right:8px}
+#alert{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:30;padding:14px 26px;border-radius:8px;font-size:18px;font-weight:800;color:#fff;box-shadow:0 6px 24px rgba(0,0,0,.5);max-width:92vw;text-align:center}
+#alert.bull{background:#c62a37}#alert.bear{background:#1f5fc9}
 </style>
 </head>
 <body>
@@ -74,10 +88,11 @@ aside{position:sticky;top:16px}
 <div id="app" class="hidden">
   <header>
     <h1>📈 모의 주식 투자</h1>
-    <div id="status">연결 중…</div>
+    <div style="display:flex;align-items:center;flex-wrap:wrap;justify-content:flex-end"><span id="mood" class="hidden"></span><span id="clock"></span><span id="status">연결 중…</span></div>
   </header>
+  <div id="bar"><i></i></div>
   <div class="layout">
-    <main id="list"></main>
+    <main><section class="card news"><div class="mast">주식일보<small id="ndate"></small></div><div id="news"><div class="empty">아직 들어온 소식이 없습니다. 속보를 기다려 주세요.</div></div></section><div id="list"></div></main>
     <aside>
       <div class="card">
         <h3>내 정보</h3>
@@ -92,6 +107,7 @@ aside{position:sticky;top:16px}
     </aside>
   </div>
 </div>
+<div id="alert" class="hidden"></div>
 <div id="toast"></div>
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -101,23 +117,29 @@ aside{position:sticky;top:16px}
    ★ 설정값 (여기만 수정하면 됩니다)
    ========================================================= */
 const INITIAL_PRICE = 10000;   // 모든 종목 시작 주가
-const MIN_PRICE     = 100;     // 최소 주가 하한선 (상장폐지/마이너스 방지)
-const MAX_MOVE      = 0.02;    // 한 번에 최대 ±2% 변동
-const TICK_MS       = 4000;    // 주가 변동 주기 (4초)
+const MIN_PRICE     = 100;     // 최소 주가 하한선
+const MAX_MOVE      = 0.02;    // 한 번에 기본 변동폭 ±2%
+const TICK_MS       = 10000;   // 주가 변동 주기 (10초)  ← 더 느리게: 숫자를 키우세요
 const START_CASH    = 1000000; // 초기 자본금
-const HISTORY_LEN   = 60;      // 차트에 저장할 최근 가격 개수
+const HISTORY_LEN   = 90;      // 차트용 최근 가격 개수
+/* 이벤트(뉴스) 설정 */
+const EVENT_MIN_MS  = 5*60*1000;   // 이벤트 최소 간격 5분
+const EVENT_MAX_MS  = 10*60*1000;  // 이벤트 최대 간격 10분
+const EVENT_TICKS   = 12;          // 이벤트 영향이 지속되는 변동 횟수 (12회 × 10초 = 2분)
+const STOCK_DRIFT   = 0.008;       // 종목 이벤트: 변동 때마다 ±0.8% 추가
+const GROUP_DRIFT   = 0.005;       // 그룹 이벤트: ±0.5%
+const MARKET_DRIFT  = 0.006;       // 불장/하락장: ±0.6%
 
-/* ★ Firebase 콘솔에서 복사한 설정을 여기에 붙여넣으세요 */
 const firebaseConfig = {
-    apiKey: "AIzaSyAcC1R3F9xSoPIB0MeoSCxODFNtsUFTptc",
-    authDomain: "jusick-62ae2.firebaseapp.com",
-databaseURL: "https://jusick-62ae2-default-rtdb.asia-southeast1.firebasedatabase.app/",
-    projectId: "jusick-62ae2",
-    storageBucket: "jusick-62ae2.firebasestorage.app",
-    messagingSenderId: "717684758310",
-    appId: "1:717684758310:web:37e6fc87a20ff6cd7653e7",
-    measurementId: "G-2TPT5PNZZH"
-  };
+  apiKey: "AIzaSyAcC1R3F9xSoPIB0MeoSCxODFNtsUFTptc",
+  authDomain: "jusick-62ae2.firebaseapp.com",
+  databaseURL: "https://jusick-62ae2-default-rtdb.asia-southeast1.firebasedatabase.app/",
+  projectId: "jusick-62ae2",
+  storageBucket: "jusick-62ae2.firebasestorage.app",
+  messagingSenderId: "717684758310",
+  appId: "1:717684758310:web:37e6fc87a20ff6cd7653e7",
+  measurementId: "G-2TPT5PNZZH"
+};
 /* ========================================================= */
 
 const SECTORS = [
@@ -127,51 +149,158 @@ const SECTORS = [
   {name:'지후 그룹',  stocks:['지후비행사','지후관제탑','지후SSD','지후그래픽카드']}
 ];
 const ALL = [];
-SECTORS.forEach((s,si)=>s.stocks.forEach((n,i)=>ALL.push({id:'s'+(si*4+i),name:n,sector:s.name})));
+SECTORS.forEach((s,si)=>s.stocks.forEach((n,i)=>ALL.push({id:'s'+(si*4+i),name:n,sector:s.name,gi:si})));
 const BYID = Object.fromEntries(ALL.map(s=>[s.id,s]));
+
+/* ---------- 신문 기사 (종목별 [호재, 악재]) ---------- */
+const STORY = {
+  s0:['민준공업, 대형 설비 수주 \'잭팟\'…공장 풀가동','민준공업 공장서 가동 중단 사고…생산 차질 우려'],
+  s1:['민준제과 신제품 SNS서 품절 대란…"없어서 못 판다"','민준제과 제품서 이물질 논란…소비자 불만 확산'],
+  s2:['민준배달, 라이더 증원에 주문 폭주…역대 최대 실적','민준배달 앱 먹통 사태…주문 대량 취소'],
+  s3:['민준이사, 개학철 이사 성수기에 예약 꽉 찼다','민준이사 작업 중 가구 파손 논란…보상 갈등'],
+  s4:['수현k과자, 해외 수출길 열렸다…현지 마트 입점','수현k과자 원재료값 급등…가격 인상 불가피'],
+  s5:['수현k유통, 물류 자동화 성공…배송 속도 2배','수현k유통 물류센터 파업…배송 지연 속출'],
+  s6:['수현k자동차 신형 모델 사전계약 신기록','수현k자동차 부품 결함 리콜 발표'],
+  s7:['수현k부동산, 인근 개발 호재에 문의 급증','수현k부동산 금리 인상 직격탄…거래 절벽'],
+  s8:['수현j휴대폰 신작 공개에 예약 대기줄 장사진','수현j휴대폰 발열 논란…환불 요구 잇따라'],
+  s9:['수현j컴퓨터 신제품, 성능 평가 1위 등극','수현j컴퓨터 부팅 오류 대량 발생…업데이트 중단'],
+  s10:['수현j게임 신작 동시접속자 폭증…서버 증설','수현j게임 확률 조작 의혹…이용자 집단 항의'],
+  s11:['수현j피규어 한정판, 경매서 최고가 경신','수현j피규어 짝퉁 대량 유통…브랜드 가치 훼손'],
+  s12:['지후비행사, 신규 노선 취항…예약률 98%','지후비행사 기체 점검으로 결항 속출'],
+  s13:['지후관제탑, 첨단 레이더 도입…안전 등급 최고','지후관제탑 통신 장애…공항 한때 혼란'],
+  s14:['지후SSD 속도 신기록…서버 업체 대량 주문','지후SSD 일부 제품서 데이터 유실 신고'],
+  s15:['지후그래픽카드 품귀 현상…웃돈 얹어도 못 산다','지후그래픽카드 과열 문제 제기…재고 쌓인다']
+};
+const GROUPS = [
+  ['민준 그룹, 계열사 시너지 극대화…올해 최고 실적','민준 그룹 총수 리스크 부각…계열사 동반 약세'],
+  ['수현K 그룹, 대규모 투자 유치 성공','수현K 그룹 세무조사 착수 소식에 술렁'],
+  ['수현J 그룹, 차세대 플랫폼 공동 발표','수현J 그룹 개인정보 유출 사고 파문'],
+  ['지후 그룹, 항공·반도체 동반 수주 소식','지후 그룹 해외 공급망 차질…생산 비상']
+];
+const LG = ['투자자들의 매수세가 몰리며 관심이 집중되고 있다.','증권가에서는 실적 개선 기대감이 커지고 있다는 평가가 나온다.','업계 관계자들은 당분간 상승 흐름이 이어질 수 있다고 내다봤다.'];
+const LB = ['투자자들 사이에서 불안감이 번지며 매도 물량이 나오고 있다.','증권가에서는 단기 실적 악화가 불가피하다는 분석이 나온다.','업계 관계자들은 당분간 약세 흐름이 이어질 수 있다고 우려했다.'];
+const pick = a => a[Math.floor(Math.random()*a.length)];
+const rndGap = () => Math.round(EVENT_MIN_MS + Math.random()*(EVENT_MAX_MS-EVENT_MIN_MS));
+
+function genEvent(now){
+  const r = Math.random(), good = Math.random()<0.5, sg = good?1:-1;
+  let kind, ids, head, d, lede;
+  if(r<0.5){
+    const s = pick(ALL); kind='stock'; ids=[s.id]; head=STORY[s.id][good?0:1]; d=STOCK_DRIFT*sg;
+  }else if(r<0.8){
+    const gi = Math.floor(Math.random()*4); kind='group';
+    ids = ALL.filter(s=>s.gi===gi).map(s=>s.id); head=GROUPS[gi][good?0:1]; d=GROUP_DRIFT*sg;
+  }else{
+    kind = good?'bull':'bear'; ids = ALL.map(s=>s.id); d=MARKET_DRIFT*sg;
+    head = good ? '🐂 불장 개막! 투자 열기 폭발…전 종목 훈풍' : '🐻 하락장 돌입! 공포 확산…전 종목 동반 약세';
+    lede = good ? '시장 전반에 매수세가 몰리며 모든 종목이 들썩이고 있다.' : '시장 전반에 매도세가 번지며 모든 종목이 흔들리고 있다.';
+  }
+  return {
+    news:{id:now,t:now,kind,good,head,lede:lede||pick(good?LG:LB)},
+    act:{ids,d,n:EVENT_TICKS,m:(kind==='bull'||kind==='bear')?kind:''}
+  };
+}
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
-let market = null, offset = 0, me = null, myKey = null, lastPush = 0;
+let market = null, offset = 0, me = null, myKey = null, lastPush = 0, lastNewsId = null, firstSnap = true;
 const $ = id => document.getElementById(id);
 const won = n => Math.round(n).toLocaleString('ko-KR');
 const cls = v => v>0?'up':v<0?'down':'flat';
 const arrow = v => v>0?'▲':v<0?'▼':'-';
 const pct = v => (v>0?'+':'')+v.toFixed(2)+'%';
-
 $('m-cash').textContent = won(START_CASH);
+$('ndate').textContent = new Date().toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric',weekday:'long'});
 
 /* ---------- 시장 데이터: 모든 접속자가 /market 하나를 공유 ---------- */
 function initMarket(now){
   const stocks = {};
   ALL.forEach(s=>stocks[s.id]={p:INITIAL_PRICE,prev:INITIAL_PRICE,h:[INITIAL_PRICE]});
-  return {last:now,tick:0,stocks};
+  return {last:now,tick:0,stocks,news:[],active:[],nextEvent:now+rndGap()};
 }
 /* 아무 접속자나 시도하되, 트랜잭션 덕분에 주기당 단 1명만 성공 → 모두 같은 값 */
 function tryTick(){
   const now = Date.now()+offset;
   db.ref('market').transaction(cur=>{
     if(!cur) return initMarket(now);
-    if(now-cur.last < TICK_MS-300) return; // 아직 시간 안 됨 → 변경 없음
-    const next = {last:now,tick:(cur.tick||0)+1,stocks:{}};
+    if(now-cur.last < TICK_MS-300) return;
+    const act = cur.active||[], drift = {};
+    act.forEach(a=>a.ids.forEach(id=>drift[id]=(drift[id]||0)+a.d));
+    const next = {
+      last:now, tick:(cur.tick||0)+1, stocks:{}, news:cur.news||[],
+      nextEvent:cur.nextEvent||(now+rndGap()),
+      active:act.map(a=>({ids:a.ids,d:a.d,n:a.n-1,m:a.m||''})).filter(a=>a.n>0)
+    };
     ALL.forEach(s=>{
       const c = (cur.stocks&&cur.stocks[s.id])||{p:INITIAL_PRICE,h:[INITIAL_PRICE]};
-      const r = (Math.random()*2-1)*MAX_MOVE;
+      const r = (Math.random()*2-1)*MAX_MOVE + (drift[s.id]||0);
       const p = Math.max(MIN_PRICE, Math.round(c.p*(1+r)));
       next.stocks[s.id] = {p, prev:c.p, h:(c.h||[]).concat(p).slice(-HISTORY_LEN)};
     });
+    if(now>=next.nextEvent){            // 이벤트 발생 시각이 되면 신문 기사 생성
+      const e = genEvent(now);
+      next.news = [e.news].concat(next.news).slice(0,10);
+      next.active.push(e.act);
+      next.nextEvent = now+rndGap();
+    }
     return next;
   },null,false);
 }
 db.ref('.info/serverTimeOffset').on('value',s=>offset=s.val()||0);
 db.ref('.info/connected').on('value',s=>{
-  $('status').innerHTML = s.val() ? '실시간 연결됨' : '연결 끊김 · 재연결 중…';
+  $('status').textContent = s.val() ? '실시간 연결됨' : '연결 끊김 · 재연결 중…';
 });
 db.ref('market').on('value',snap=>{
   market = snap.val();
-  if(market && me) update();
+  if(!market) return;
+  renderNews(); checkAlert();
+  if(me) update();
 });
 setInterval(tryTick,1000);
+
+/* ---------- 변동 시간 표시 ---------- */
+setInterval(()=>{
+  if(!market) return;
+  const now = Date.now()+offset;
+  const left = Math.max(0,Math.ceil((market.last+TICK_MS-now)/1000));
+  const t = new Date(market.last).toLocaleTimeString('ko-KR',{hour12:false});
+  $('clock').textContent = `마지막 변동 ${t} · 다음 변동 ${left}초 후`;
+  $('bar').querySelector('i').style.width = Math.min(100,Math.max(0,(now-market.last)/TICK_MS*100))+'%';
+},250);
+
+/* ---------- 신문 / 불장·하락장 알림 ---------- */
+function renderNews(){
+  const list = market.news||[], box = $('news');
+  const a = (market.active||[]).find(x=>x.m), mood = $('mood');
+  if(a){ mood.className=a.m; mood.textContent=(a.m==='bull'?'🐂 불장':'🐻 하락장')+' 진행 중'; }
+  else mood.className='hidden';
+  if(!list.length) return;
+  box.innerHTML = '<div class="top"><h4></h4><p></p></div><div class="old"></div>';
+  box.querySelector('h4').textContent = list[0].head;
+  box.querySelector('p').textContent = list[0].lede;
+  const old = box.querySelector('.old');
+  list.slice(1,6).forEach(n=>{
+    const d = document.createElement('div'), t = document.createElement('time');
+    t.textContent = new Date(n.t).toLocaleTimeString('ko-KR',{hour12:false,hour:'2-digit',minute:'2-digit'});
+    d.appendChild(t); d.appendChild(document.createTextNode(n.head)); old.appendChild(d);
+  });
+  if(list.length<2) old.remove();
+}
+function checkAlert(){
+  const top = (market.news||[])[0], id = top?top.id:0;
+  if(firstSnap){ firstSnap=false; lastNewsId=id; return; }
+  if(!top || id===lastNewsId) return;
+  lastNewsId = id;
+  if(!me) return;
+  if(top.kind==='bull') showAlert('🐂 불장입니다! 시장 전체가 오르고 있어요','bull');
+  else if(top.kind==='bear') showAlert('🐻 하락장입니다! 시장 전체가 내리고 있어요','bear');
+  else toast('📰 속보: '+top.head,5000);
+}
+let at;
+function showAlert(msg,kind){
+  const el = $('alert'); el.textContent = msg; el.className = kind;
+  clearTimeout(at); at = setTimeout(()=>el.className='hidden',7000);
+}
 
 /* ---------- 닉네임 모달 ---------- */
 $('nick').value = localStorage.getItem('stock_last_nick')||'';
@@ -231,7 +360,7 @@ function spark(h,c){
 /* ---------- 화면 갱신 ---------- */
 function update(){
   if(!market||!market.stocks) return;
-  let stockValue=0, pl=0;
+  let stockValue=0;
   ALL.forEach(s=>{
     const d = market.stocks[s.id]; if(!d) return;
     const diff = d.p-d.prev, rate = d.prev? diff/d.prev*100 : 0;
@@ -248,8 +377,8 @@ function update(){
   const hl = $('holds'); hl.innerHTML='';
   Object.keys(me.hold).forEach(id=>{
     const h = me.hold[id], d = market.stocks[id]; if(!h||h.qty<=0||!d) return;
-    const val = d.p*h.qty, p = (d.p-h.avg)*h.qty, r = (d.p-h.avg)/h.avg*100;
-    stockValue += val; pl += p;
+    const p = (d.p-h.avg)*h.qty, r = (d.p-h.avg)/h.avg*100;
+    stockValue += d.p*h.qty;
     const el = document.createElement('div'); el.className='hold';
     el.innerHTML = `<b></b><span class="${cls(p)}" style="text-align:right">${p>0?'+':''}${won(p)}원</span>
       <span class="sub">${won(h.qty)}주 · 평균 ${won(h.avg)}원</span><span class="sub ${cls(p)}" style="text-align:right">${pct(r)}</span>`;
@@ -306,9 +435,9 @@ function trade(id,type,qty){
 }
 
 let tt;
-function toast(msg){
+function toast(msg,ms=2000){
   const t=$('toast'); t.textContent=msg; t.classList.add('show');
-  clearTimeout(tt); tt=setTimeout(()=>t.classList.remove('show'),2000);
+  clearTimeout(tt); tt=setTimeout(()=>t.classList.remove('show'),ms);
 }
 </script>
 </body>
