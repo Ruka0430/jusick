@@ -77,7 +77,6 @@ aside{position:sticky;top:16px}
 </head>
 <body>
 
-<!-- 닉네임 입력 모달 -->
 <div id="modal">
   <div class="box">
     <h2>모의 주식 투자</h2>
@@ -117,28 +116,22 @@ aside{position:sticky;top:16px}
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <script>
-/* =========================================================
-   ★ 설정값 (여기만 수정하면 됩니다)
-   ========================================================= */
-const INITIAL_PRICE = 10000;   // 모든 종목 시작 주가
-const MIN_PRICE     = 100;     // 최소 주가 하한선
-const MAX_MOVE      = 0.02;    // 한 번에 기본 변동폭 ±2%
-const TICK_MS       = 10000;   // 주가 변동 주기 (10초)  ← 더 느리게: 숫자를 키우세요
-const START_CASH    = 1000000; // 초기 자본금
-const HISTORY_LEN   = 90;      // 차트용 최근 가격 개수
-/* ★ BGM: 유튜브 재생목록 ID (주소의 list= 뒤 글자). 비워두면 기본 BGM이 나옵니다 */
+const INITIAL_PRICE = 10000;
+const MIN_PRICE = 100;
+const MAX_MOVE = 0.02;
+const TICK_MS = 10000;
+const START_CASH = 1000000;
+const HISTORY_LEN = 90;
 const YT_PLAYLIST_ID = '';
-/* ★ BGM: 유튜브 영상 주소를 여기에 넣으세요 (여러 개면 쉼표로). 예: ['https://youtu.be/AAAAAAAAAAA','https://www.youtube.com/watch?v=BBBBBBBBBBB'] */
-const YT_VIDEOS = [];
+const YT_VIDEOS = ['https://www.youtube.com/watch?v=CbS7WwlcU8U'];
 const YT_IDS = YT_VIDEOS.map(u=>{const m=String(u).match(/(?:v=|youtu\.be\/|shorts\/|embed\/)([\w-]{11})/);return m?m[1]:String(u).trim();}).filter(Boolean);
 const USE_YT = !!(YT_PLAYLIST_ID||YT_IDS.length);
-/* 이벤트(뉴스) 설정 */
-const EVENT_MIN_MS  = 1*60*1000;   // 이벤트 최소 간격 1분
-const EVENT_MAX_MS  = 3*60*1000;   // 이벤트 최대 간격 3분
-const EVENT_TICKS   = 12;          // 이벤트 영향이 지속되는 변동 횟수 (12회 × 10초 = 2분)
-const STOCK_DRIFT   = 0.008;       // 종목 이벤트: 변동 때마다 ±0.8% 추가
-const GROUP_DRIFT   = 0.005;       // 그룹 이벤트: ±0.5%
-const MARKET_DRIFT  = 0.006;       // 불장/하락장: ±0.6%
+const EVENT_MIN_MS = 1*60*1000;
+const EVENT_MAX_MS = 3*60*1000;
+const EVENT_TICKS = 12;
+const STOCK_DRIFT = 0.008;
+const GROUP_DRIFT = 0.005;
+const MARKET_DRIFT = 0.006;
 
 const firebaseConfig = {
   apiKey: "AIzaSyAcC1R3F9xSoPIB0MeoSCxODFNtsUFTptc",
@@ -150,7 +143,6 @@ const firebaseConfig = {
   appId: "1:717684758310:web:37e6fc87a20ff6cd7653e7",
   measurementId: "G-2TPT5PNZZH"
 };
-/* ========================================================= */
 
 const SECTORS = [
   {name:'민준 그룹',  stocks:['민준공업','민준제과','민준배달','민준이사']},
@@ -162,7 +154,6 @@ const ALL = [];
 SECTORS.forEach((s,si)=>s.stocks.forEach((n,i)=>ALL.push({id:'s'+(si*4+i),name:n,sector:s.name,gi:si})));
 const BYID = Object.fromEntries(ALL.map(s=>[s.id,s]));
 
-/* ---------- 신문 기사 (종목별 [호재, 악재]) ---------- */
 const STORY = {
   s0:['민준공업, 대형 설비 수주 \'잭팟\'…공장 풀가동','민준공업 공장서 가동 중단 사고…생산 차질 우려'],
   s1:['민준제과 신제품 SNS서 품절 대란…"없어서 못 판다"','민준제과 제품서 이물질 논란…소비자 불만 확산'],
@@ -223,13 +214,12 @@ $('m-cash').textContent = won(START_CASH);
 const DATESTR = new Date().toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric',weekday:'long'});
 $('ndate').textContent = DATESTR;
 
-/* ---------- 시장 데이터: 모든 접속자가 /market 하나를 공유 ---------- */
 function initMarket(now){
   const stocks = {};
   ALL.forEach(s=>stocks[s.id]={p:INITIAL_PRICE,prev:INITIAL_PRICE,h:[INITIAL_PRICE]});
   return {last:now,tick:0,stocks,news:[],active:[],nextEvent:now+rndGap()};
 }
-/* 아무 접속자나 시도하되, 트랜잭션 덕분에 주기당 단 1명만 성공 → 모두 같은 값 */
+
 function tryTick(){
   const now = Date.now()+offset;
   db.ref('market').transaction(cur=>{
@@ -248,7 +238,7 @@ function tryTick(){
       const p = Math.max(MIN_PRICE, Math.round(c.p*(1+r)));
       next.stocks[s.id] = {p, prev:c.p, h:(c.h||[]).concat(p).slice(-HISTORY_LEN)};
     });
-    if(now>=next.nextEvent){            // 이벤트 발생 시각이 되면 신문 기사 생성
+    if(now>=next.nextEvent){
       const e = genEvent(now);
       next.news = [e.news].concat(next.news).slice(0,10);
       next.active.push(e.act);
@@ -257,6 +247,7 @@ function tryTick(){
     return next;
   },null,false);
 }
+
 db.ref('.info/serverTimeOffset').on('value',s=>offset=s.val()||0);
 db.ref('.info/connected').on('value',s=>{
   $('status').textContent = s.val() ? '실시간 연결됨' : '연결 끊김 · 재연결 중…';
@@ -269,7 +260,6 @@ db.ref('market').on('value',snap=>{
 });
 setInterval(tryTick,1000);
 
-/* ---------- 변동 시간 표시 ---------- */
 setInterval(()=>{
   if(!market) return;
   const now = Date.now()+offset;
@@ -280,7 +270,6 @@ setInterval(()=>{
   $('bar').querySelector('i').style.width = Math.min(100,Math.max(0,(now-market.last)/TICK_MS*100))+'%';
 },250);
 
-/* ---------- 신문 / 불장·하락장 알림 ---------- */
 function renderNews(){
   const list = market.news||[], box = $('news');
   const a = (market.active||[]).find(x=>x.m), mood = $('mood');
@@ -298,6 +287,7 @@ function renderNews(){
   });
   if(list.length<2) old.remove();
 }
+
 function checkAlert(){
   const top = (market.news||[])[0], id = top?top.id:0;
   if(firstSnap){ firstSnap=false; lastNewsId=id; return; }
@@ -314,14 +304,11 @@ function showAlert(msg,kind){
   clearTimeout(at); at = setTimeout(()=>el.className='hidden',7000);
 }
 
-/* ---------- 닉네임 모달 ---------- */
 $('nick').value = localStorage.getItem('stock_last_nick')||'';
 function enter(){
   const nick = $('nick').value.trim();
   if(nick.length<1){ $('err').textContent='닉네임을 입력해 주세요.'; return; }
   myKey = nick.replace(/[.#$\[\]\/]/g,'_');
-  
-  // 데이터 로드 성공/실패와 관계없이 게임 화면으로 정상 진입하도록 보장
   const saved = JSON.parse(localStorage.getItem('stock_player_'+myKey)||'null');
   me = saved || {nick,cash:START_CASH,hold:{}};
   localStorage.setItem('stock_last_nick',nick);
@@ -331,21 +318,12 @@ function enter(){
   $('me-nick').textContent = me.nick;
   buildList();
   update();
-
-  // Firebase 실시간 랭킹 리스너 연결
-  db.ref('players').on('value', snap => {
-    const v = snap.val()||{};
-    renderRanks(Object.keys(v).map(k=>({key:k,nick:v[k].nick||k,equity:Number(v[k].equity)||0})).sort((a,b)=>b.equity-a.equity).slice(0,5));
-  }, e => {
-    console.error(e);
-    $('ranks').textContent = '랭킹 읽기 실패';
-  });
+  db.ref('players').on('value',snap=>{const v=snap.val()||{};renderRanks(Object.keys(v).map(k=>({key:k,nick:v[k].nick||k,equity:Number(v[k].equity)||0})).sort((a,b)=>b.equity-a.equity).slice(0,5));},e=>{console.error(e);});
 }
 $('start').onclick = enter;
 $('nick').addEventListener('keydown',e=>{ if(e.key==='Enter') enter(); });
 $('nick').focus();
 
-/* ---------- 종목 리스트 (한 번만 생성, 이후 값만 갱신) ---------- */
 function buildList(){
   const root = $('list'); root.innerHTML='';
   SECTORS.forEach(sec=>{
@@ -380,7 +358,6 @@ function spark(h,c){
   return `<polyline points="${pts}" fill="none" stroke="${col}" stroke-width="1.6" stroke-linejoin="round"/>`;
 }
 
-/* ---------- 화면 갱신 ---------- */
 function update(){
   if(!market||!market.stocks) return;
   let stockValue=0;
@@ -432,7 +409,6 @@ function renderRanks(arr){
   });
 }
 
-/* ---------- 매수 / 매도 ---------- */
 function trade(id,type,qty){
   if(!market||!market.stocks[id]) return toast('시세를 불러오는 중입니다.');
   if(!Number.isInteger(qty)||qty<=0) return toast('수량은 1 이상의 정수여야 합니다.');
@@ -461,58 +437,27 @@ function toast(msg,ms=2000){
   clearTimeout(tt); tt=setTimeout(()=>t.classList.remove('show'),ms);
 }
 
-/* ---------- BGM: 브라우저에서 직접 만드는 잔잔한 루프 음악 (파일 필요 없음) ---------- */
-const CHORDS=[[48,55,59,64],[45,52,55,60],[50,57,60,65],[43,50,53,59]];
-const ARP=[0,1,2,3,2,1,3,2];
-let ac=null,master=null,bgmTimer=null,nextT=0,stepN=0;
-const hz=m=>440*Math.pow(2,(m-69)/12);
-function tone(m,t,dur,type,vol){
-  const o=ac.createOscillator(),g=ac.createGain();
-  o.type=type;o.frequency.value=hz(m);
-  g.gain.setValueAtTime(0.0001,t);
-  g.gain.linearRampToValueAtTime(vol,t+0.03);
-  g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
-  o.connect(g);g.connect(master);o.start(t);o.stop(t+dur+0.05);
-}
-function sched(){
-  while(nextT<ac.currentTime+1.2){
-    const i=stepN%8, ch=CHORDS[Math.floor(stepN/8)%4];
-    if(i===0) ch.forEach(m=>tone(m,nextT,3.2,'sine',0.12));
-    tone(ch[ARP[i]]+12,nextT,0.5,'triangle',0.1);
-    if(i%4===0) tone(ch[0]-12,nextT,0.35,'sine',0.2);
-    nextT+=0.375; stepN++;
-  }
-}
-/* ---------- 유튜브 재생목록 BGM (YT_PLAYLIST_ID를 넣었을 때만 사용) ---------- */
 let yt=null,ytReady=false,ytWant=false;
 function ytStart(){
   ytWant=true; $('bgm').textContent='🔊';
   if(yt){ if(ytReady) yt.playVideo(); return; }
   $('ytbox').classList.remove('hidden');
+  const pVars = {playsinline:1, origin:location.origin};
   const opt=YT_PLAYLIST_ID
-    ?{playerVars:{listType:'playlist',list:YT_PLAYLIST_ID,playsinline:1}}
-    :{videoId:YT_IDS[0],playerVars:{playsinline:1,loop:1,playlist:(YT_IDS.length>1?YT_IDS.slice(1).join(','):YT_IDS[0])}};
+    ?{playerVars:Object.assign({listType:'playlist',list:YT_PLAYLIST_ID},pVars)}
+    :{videoId:YT_IDS[0],playerVars:Object.assign({loop:1,playlist:(YT_IDS.length>1?YT_IDS.slice(1).join(','):YT_IDS[0])},pVars)};
   const mk=()=>{ yt=new YT.Player('ytplayer',Object.assign({width:'256',height:'200'},opt,{
     events:{onReady:e=>{ ytReady=true; e.target.setVolume(+$('vol').value); e.target.setShuffle(true); e.target.setLoop(true); if(ytWant) e.target.playVideo(); }}})); };
   if(window.YT&&YT.Player) mk();
   else{ window.onYouTubeIframeAPIReady=mk; const sc=document.createElement('script'); sc.src='https://www.youtube.com/iframe_api'; document.head.appendChild(sc); }
 }
 function ytStop(){ ytWant=false; if(yt&&ytReady) yt.pauseVideo(); $('bgm').textContent='🔇'; }
-function startBgm(){
-  if(USE_YT){ ytStart(); return; }
-  try{
-    if(!ac){ ac=new(window.AudioContext||window.webkitAudioContext)(); master=ac.createGain(); master.connect(ac.destination); }
-    master.gain.value=$('vol').value/100;
-    ac.resume(); nextT=ac.currentTime+0.1;
-    if(!bgmTimer) bgmTimer=setInterval(sched,200);
-    $('bgm').textContent='🔊';
-  }catch(e){ console.error(e); }
-}
-function stopBgm(){ if(USE_YT){ ytStop(); return; } clearInterval(bgmTimer); bgmTimer=null; if(ac) ac.suspend(); $('bgm').textContent='🔇'; }
+function startBgm(){ ytStart(); }
+function stopBgm(){ ytStop(); }
 function initBgm(){ if(localStorage.getItem('stock_bgm')!=='off') startBgm(); else $('bgm').textContent='🔇'; }
-$('bgm').onclick=()=>{ if(USE_YT?ytWant:bgmTimer){stopBgm();localStorage.setItem('stock_bgm','off');}else{startBgm();localStorage.setItem('stock_bgm','on');} };
+$('bgm').onclick=()=>{ if(ytWant){stopBgm();localStorage.setItem('stock_bgm','off');}else{startBgm();localStorage.setItem('stock_bgm','on');} };
 $('vol').value=localStorage.getItem('stock_vol')||35;
-$('vol').oninput=e=>{ localStorage.setItem('stock_vol',e.target.value); if(master) master.gain.value=e.target.value/100; if(yt&&ytReady) yt.setVolume(+e.target.value); };
+$('vol').oninput=e=>{ localStorage.setItem('stock_vol',e.target.value); if(yt&&ytReady) yt.setVolume(+e.target.value); };
 </script>
 </body>
 </html>
