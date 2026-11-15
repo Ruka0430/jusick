@@ -316,7 +316,7 @@ function enter(){
   $('me-nick').textContent = me.nick;
   buildList();
   update();
-  db.ref('players').orderByChild('equity').limitToLast(5).on('value',renderRanks);
+  db.ref('players').orderByChild('equity').limitToLast(5).on('value',renderRanks,e=>{console.error(e);$('ranks').textContent='랭킹 읽기 실패: '+(e.code||e.message)+' → Firebase 규칙을 확인하세요';});
 }
 $('start').onclick = enter;
 $('nick').addEventListener('keydown',e=>{ if(e.key==='Enter') enter(); });
@@ -394,12 +394,12 @@ function update(){
   const now = Date.now();
   if(now-lastPush>3000){
     lastPush = now;
-    db.ref('players/'+myKey).set({nick:me.nick,equity:Math.round(equity)});
+    db.ref('players/'+myKey).set({nick:me.nick,equity:Math.round(equity)}).catch(e=>{console.error(e);$('ranks').textContent='랭킹 저장 실패: '+(e.code||e.message)+' → Firebase 규칙을 확인하세요';});
   }
 }
 
 function renderRanks(snap){
-  const arr=[]; snap.forEach(c=>arr.push({key:c.key,...c.val()}));
+  const arr=[]; snap.forEach(c=>{arr.push({key:c.key,...c.val()});});
   arr.reverse();
   const el=$('ranks'); el.innerHTML='';
   arr.forEach((p,i)=>{
