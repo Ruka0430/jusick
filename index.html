@@ -103,7 +103,7 @@ aside{position:sticky;top:16px}
         <div class="kv"><span>총 평가손익</span><span id="me-pl"></span></div>
       </div>
       <div class="card"><h3>보유 주식</h3><div id="holds"></div></div>
-      <div class="card"><h3>자산 랭킹 TOP 5</h3><div id="ranks"></div></div>
+      <div class="card"><h3>자산 랭킹 TOP 5 · v4</h3><div id="ranks"></div></div>
     </aside>
   </div>
 </div>
@@ -316,7 +316,7 @@ function enter(){
   $('me-nick').textContent = me.nick;
   buildList();
   update();
-  db.ref('players').orderByChild('equity').limitToLast(5).on('value',renderRanks,e=>{console.error(e);$('ranks').textContent='랭킹 읽기 실패: '+(e.code||e.message)+' → Firebase 규칙을 확인하세요';});
+  db.ref('players').on('value',snap=>{const v=snap.val()||{};renderRanks(Object.keys(v).map(k=>({key:k,nick:v[k].nick||k,equity:Number(v[k].equity)||0})).sort((a,b)=>b.equity-a.equity).slice(0,5));},e=>{console.error(e);$('ranks').textContent='랭킹 읽기 실패: '+(e.code||e.message)+' → Firebase 규칙을 확인하세요';});
 }
 $('start').onclick = enter;
 $('nick').addEventListener('keydown',e=>{ if(e.key==='Enter') enter(); });
@@ -398,9 +398,7 @@ function update(){
   }
 }
 
-function renderRanks(snap){
-  const arr=[]; snap.forEach(c=>{arr.push({key:c.key,...c.val()});});
-  arr.reverse();
+function renderRanks(arr){
   const el=$('ranks'); el.innerHTML='';
   arr.forEach((p,i)=>{
     const ret=(p.equity-START_CASH)/START_CASH*100;
