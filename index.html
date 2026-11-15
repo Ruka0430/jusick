@@ -129,7 +129,7 @@ const HISTORY_LEN   = 90;      // 차트용 최근 가격 개수
 /* ★ BGM: 유튜브 재생목록 ID (주소의 list= 뒤 글자). 비워두면 기본 BGM이 나옵니다 */
 const YT_PLAYLIST_ID = '';
 /* ★ BGM: 유튜브 영상 주소를 여기에 넣으세요 (여러 개면 쉼표로). 예: ['https://youtu.be/AAAAAAAAAAA','https://www.youtube.com/watch?v=BBBBBBBBBBB'] */
-const YT_VIDEOS = [https://www.youtube.com/watch?v=CbS7WwlcU8U&list=RDCbS7WwlcU8U&start_radio=1];
+const YT_VIDEOS = [];
 const YT_IDS = YT_VIDEOS.map(u=>{const m=String(u).match(/(?:v=|youtu\.be\/|shorts\/|embed\/)([\w-]{11})/);return m?m[1]:String(u).trim();}).filter(Boolean);
 const USE_YT = !!(YT_PLAYLIST_ID||YT_IDS.length);
 /* 이벤트(뉴스) 설정 */
