@@ -320,6 +320,8 @@ function enter(){
   const nick = $('nick').value.trim();
   if(nick.length<1){ $('err').textContent='닉네임을 입력해 주세요.'; return; }
   myKey = nick.replace(/[.#$\[\]\/]/g,'_');
+  
+  // 데이터 로드 성공/실패와 관계없이 게임 화면으로 정상 진입하도록 보장
   const saved = JSON.parse(localStorage.getItem('stock_player_'+myKey)||'null');
   me = saved || {nick,cash:START_CASH,hold:{}};
   localStorage.setItem('stock_last_nick',nick);
@@ -329,7 +331,15 @@ function enter(){
   $('me-nick').textContent = me.nick;
   buildList();
   update();
-  db.ref('players').on('value',snap=>{const v=snap.val()||{};renderRanks(Object.keys(v).map(k=>({key:k,nick:v[k].nick||k,equity:Number(v[k].equity)||0})).sort((a,b)=>b.equity-a.equity).slice(0,5));},e=>{console.error(e);$('ranks').textContent='랭킹 읽기 실패: '+(e.code||e.message)+' → Firebase 규칙을 확인하세요';});
+
+  // Firebase 실시간 랭킹 리스너 연결
+  db.ref('players').on('value', snap => {
+    const v = snap.val()||{};
+    renderRanks(Object.keys(v).map(k=>({key:k,nick:v[k].nick||k,equity:Number(v[k].equity)||0})).sort((a,b)=>b.equity-a.equity).slice(0,5));
+  }, e => {
+    console.error(e);
+    $('ranks').textContent = '랭킹 읽기 실패';
+  });
 }
 $('start').onclick = enter;
 $('nick').addEventListener('keydown',e=>{ if(e.key==='Enter') enter(); });
@@ -407,7 +417,7 @@ function update(){
   const now = Date.now();
   if(now-lastPush>3000){
     lastPush = now;
-    db.ref('players/'+myKey).set({nick:me.nick,equity:Math.round(equity)}).catch(e=>{console.error(e);$('ranks').textContent='랭킹 저장 실패: '+(e.code||e.message)+' → Firebase 규칙을 확인하세요';});
+    db.ref('players/'+myKey).set({nick:me.nick,equity:Math.round(equity)}).catch(e=>{console.error(e);});
   }
 }
 
