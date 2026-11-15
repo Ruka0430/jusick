@@ -129,7 +129,7 @@ const HISTORY_LEN   = 90;      // 차트용 최근 가격 개수
 /* ★ BGM: 유튜브 재생목록 ID (주소의 list= 뒤 글자). 비워두면 기본 BGM이 나옵니다 */
 const YT_PLAYLIST_ID = '';
 /* ★ BGM: 유튜브 영상 주소를 여기에 넣으세요 (여러 개면 쉼표로). 예: ['https://youtu.be/AAAAAAAAAAA','https://www.youtube.com/watch?v=BBBBBBBBBBB'] */
-const YT_VIDEOS = [];
+const YT_VIDEOS = ['https://www.youtube.com/watch?v=CbS7WwlcU8U&list=RDCbS7WwlcU8U&start_radio=1'];
 const YT_IDS = YT_VIDEOS.map(u=>{const m=String(u).match(/(?:v=|youtu\.be\/|shorts\/|embed\/)([\w-]{11})/);return m?m[1]:String(u).trim();}).filter(Boolean);
 const USE_YT = !!(YT_PLAYLIST_ID||YT_IDS.length);
 /* 이벤트(뉴스) 설정 */
@@ -320,8 +320,6 @@ function enter(){
   const nick = $('nick').value.trim();
   if(nick.length<1){ $('err').textContent='닉네임을 입력해 주세요.'; return; }
   myKey = nick.replace(/[.#$\[\]\/]/g,'_');
-  
-  // 데이터 로드 성공/실패와 관계없이 게임 화면으로 정상 진입하도록 보장
   const saved = JSON.parse(localStorage.getItem('stock_player_'+myKey)||'null');
   me = saved || {nick,cash:START_CASH,hold:{}};
   localStorage.setItem('stock_last_nick',nick);
@@ -331,15 +329,7 @@ function enter(){
   $('me-nick').textContent = me.nick;
   buildList();
   update();
-
-  // Firebase 실시간 랭킹 리스너 연결
-  db.ref('players').on('value', snap => {
-    const v = snap.val()||{};
-    renderRanks(Object.keys(v).map(k=>({key:k,nick:v[k].nick||k,equity:Number(v[k].equity)||0})).sort((a,b)=>b.equity-a.equity).slice(0,5));
-  }, e => {
-    console.error(e);
-    $('ranks').textContent = '랭킹 읽기 실패';
-  });
+  db.ref('players').on('value',snap=>{const v=snap.val()||{};renderRanks(Object.keys(v).map(k=>({key:k,nick:v[k].nick||k,equity:Number(v[k].equity)||0})).sort((a,b)=>b.equity-a.equity).slice(0,5));},e=>{console.error(e);});
 }
 $('start').onclick = enter;
 $('nick').addEventListener('keydown',e=>{ if(e.key==='Enter') enter(); });
